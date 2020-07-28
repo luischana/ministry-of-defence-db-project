@@ -113,7 +113,27 @@ class DBTable(db_api.DBTable):
             raise ValueError
 
     def update_record(self, key: Any, values: Dict[str, Any]) -> None:
-        raise NotImplementedError
+        with open(f"db_files/{self.name}.csv", 'r') as db_table:
+            reader = csv.reader(db_table)
+            next(reader)
+
+            key_index = self.get_index_of_field(self.key_field_name)
+
+            update_rows = []
+            for record in reader:
+                if record and record[key_index] == str(key):
+                    row = record
+                else:
+                    update_rows += record
+
+            for name_field in [field.name for field in self.fields]:
+                if name_field in values.keys():
+                    row[self.get_index_of_field(name_field)] = values[name_field]
+            update_rows += row
+
+        with open(f"db_files/{self.name}.csv", 'w') as db_table:
+            writer = csv.writer(db_table)
+            writer.writerow(update_rows)
 
     def query_table(self, criteria: List[SelectionCriteria]) \
             -> List[Dict[str, Any]]:
