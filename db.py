@@ -98,7 +98,19 @@ class DBTable(db_api.DBTable):
                 writer.writerow(clean_rows)
 
     def get_record(self, key: Any) -> Dict[str, Any]:
-        raise NotImplementedError
+        with open(f"db_files/{self.name}.csv", 'r') as db_table:
+            reader = csv.reader(db_table)
+            next(reader)
+
+            key_index = self.get_index_of_field(self.key_field_name)
+            get_dict = {}
+
+            for record in reader:
+                if record and record[key_index] == str(key):
+                    for field in self.field.name():
+                        get_dict[field] = record[self.get_index_of_field(field)]
+                    return get_dict
+            raise ValueError
 
     def update_record(self, key: Any, values: Dict[str, Any]) -> None:
         raise NotImplementedError
