@@ -61,7 +61,21 @@ class DBTable(db_api.DBTable):
         DataBase.__DICT_TABLE__[self.name]["count"] += 1
 
     def delete_record(self, key: Any) -> None:
-        raise NotImplementedError
+        with open(f"db_files/{self.name}.csv", 'r') as db_table:
+            reader = csv.reader(db_table)
+            next(reader)
+
+            key_index = self.get_index_of_field(self.key_field_name)
+            clean_rows = [record for record in reader if record and record[key_index] != key]
+
+        if clean_rows:
+            with open(f"db_files/{self.name}.csv", 'w') as db_table:
+                writer = csv.writer(db_table)
+                writer.writerow(clean_rows)
+            DataBase.__DICT_TABLE__[self.name]["count"] -= 1
+
+        else:
+            raise ValueError
 
     def delete_records(self, criteria: List[SelectionCriteria]) -> None:
         raise NotImplementedError
