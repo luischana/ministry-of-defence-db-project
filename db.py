@@ -50,8 +50,8 @@ class DBTable(db_api.DBTable):
 
             for record in reader:
                 if record:
-                    if record[key_index] == values[self.key_field_name]:
-                        raise KeyError
+                    if record[key_index] == str(values[self.key_field_name]):
+                        raise ValueError
 
         with open(f"db_files/{self.name}.csv", 'a', newline='') as db_table:
             row = [values[field.name] for field in self.fields]
@@ -71,7 +71,7 @@ class DBTable(db_api.DBTable):
         if clean_rows:
             with open(f"db_files/{self.name}.csv", 'w') as db_table:
                 writer = csv.writer(db_table)
-                writer.writerow(clean_rows)
+                writer.writerows(clean_rows)
             DataBase.__DICT_TABLE__[self.name]["count"] -= 1
 
         else:
@@ -80,22 +80,35 @@ class DBTable(db_api.DBTable):
     def delete_records(self, criteria: List[SelectionCriteria]) -> None:
         with open(f"db_files/{self.name}.csv", 'r') as db_table:
             reader = csv.reader(db_table)
-            next(reader)
+            clean_rows = [next(reader)]
 
-        clean_rows = []
-        for record in reader:
-            for condition in criteria:
-                key_index = self.get_index_of_field(condition.field_name)
-                condition_ = record[key_index] + condition.operator + str(condition.value)
-                if not eval(condition_):
-                    clean_rows += record
-                    continue
+            count = 0
+
+            for row in reader:
+                if row:
+                    condition_ = ""
+                    for condition in criteria:
+                        key_index = self.get_index_of_field(condition.field_name)
+
+                        if condition.operator == "=":
+                            condition.operator = "=="
+
+                        if isinstance(condition.value, str):
+                            condition_ += f" '{row[key_index]}' {condition.operator} '{condition.value}' and "
+
+                        else:
+                            condition_ += f" {row[key_index]} {condition.operator} {str(condition.value)} and "
+
+                    if not eval(condition_[:-4]):
+                        clean_rows.append(row)
+                        count += 1
 
         if clean_rows:
-            DataBase.__DICT_TABLE__[self.name]["count"] = len(reader) - len(clean_rows)
-            with open(f"db_files/{self.name}.csv", 'w') as db_table:
+            with open(f"db_files/{self.name}.csv", 'w', newline="") as db_table:
                 writer = csv.writer(db_table)
-                writer.writerow(clean_rows)
+                writer.writerows(clean_rows)
+
+        DataBase.__DICT_TABLE__[self.name]["count"] = count
 
     def get_record(self, key: Any) -> Dict[str, Any]:
         with open(f"db_files/{self.name}.csv", 'r') as db_table:
@@ -107,33 +120,33 @@ class DBTable(db_api.DBTable):
 
             for record in reader:
                 if record and record[key_index] == str(key):
-                    for field in self.field.name():
+                    for field in [field.name for field in self.fields]:
                         get_dict[field] = record[self.get_index_of_field(field)]
                     return get_dict
-            raise ValueError
+        raise ValueError
 
     def update_record(self, key: Any, values: Dict[str, Any]) -> None:
         with open(f"db_files/{self.name}.csv", 'r') as db_table:
             reader = csv.reader(db_table)
-            next(reader)
 
             key_index = self.get_index_of_field(self.key_field_name)
 
-            update_rows = []
+            update_rows = [next(reader)]
+            row = {}
             for record in reader:
                 if record and record[key_index] == str(key):
                     row = record
                 else:
-                    update_rows += record
+                    update_rows.append(record)
 
             for name_field in [field.name for field in self.fields]:
                 if name_field in values.keys():
                     row[self.get_index_of_field(name_field)] = values[name_field]
-            update_rows += row
+            update_rows.append(row)
 
         with open(f"db_files/{self.name}.csv", 'w') as db_table:
             writer = csv.writer(db_table)
-            writer.writerow(update_rows)
+            writer.writerows(update_rows)
 
     def query_table(self, criteria: List[SelectionCriteria]) \
             -> List[Dict[str, Any]]:
@@ -153,6 +166,9 @@ class DataBase(db_api.DataBase):
                      fields: List[DBField],
                      key_field_name: str) -> DBTable:
 
+        if key_field_name not in [field.name for field in fields]:
+            raise ValueError
+
         if table_name in self.__DICT_TABLE__.keys():
             raise NameError
 
@@ -165,7 +181,7 @@ class DataBase(db_api.DataBase):
         return db_table
 
     def num_tables(self) -> int:
-        return len(self.__DICT_TABLE__.keys())
+        return len(DataBase.__DICT_TABLE__.keys())
 
     def get_table(self, table_name: str) -> DBTable:
         return DataBase.__DICT_TABLE__[table_name].get("table")
@@ -173,7 +189,7 @@ class DataBase(db_api.DataBase):
     def delete_table(self, table_name: str) -> None:
         if table_name in DataBase.__DICT_TABLE__.keys():
             os.remove(f"db_files/{table_name}.csv")
-            del self.__DICT_TABLE__[table_name]
+            del DataBase.__DICT_TABLE__[table_name]
 
         else:
             raise FileNotFoundError
