@@ -9,14 +9,14 @@ from dataclasses_json import dataclass_json
 
 @dataclass_json
 @dataclass
-class DBField:
+class DBField(db_api.DBField):
     name: str
     type: Type
 
 
 @dataclass_json
 @dataclass
-class SelectionCriteria:
+class SelectionCriteria(db_api.SelectionCriteria):
     field_name: str
     operator: str
     value: Any
@@ -24,16 +24,41 @@ class SelectionCriteria:
 
 @dataclass_json
 @dataclass
-class DBTable:
+class DBTable(db_api.DBTable):
     name: str
     fields: List[DBField]
     key_field_name: str
 
+    def get_fields_name(self):
+        return [field.name for field in self.fields]
+
+    def get_index_of_field(self, field):
+        return self.get_fields_name().index(field)
+
     def count(self) -> int:
-        raise NotImplementedError
+        return DataBase.__DICT_TABLE__[self.name]["count"]
 
     def insert_record(self, values: Dict[str, Any]) -> None:
-        raise NotImplementedError
+        if self.key_field_name not in values.keys():
+            raise KeyError
+
+        with open(f"db_files/{self.name}.csv", 'r') as db_table:
+            reader = csv.reader(db_table)
+            next(reader)
+
+            key_index = self.get_index_of_field(self.key_field_name)
+
+            for record in reader:
+                if record:
+                    if record[key_index] == values[self.key_field_name]:
+                        raise KeyError
+
+        with open(f"db_files/{self.name}.csv", 'a', newline='') as db_table:
+            row = [values[field.name] for field in self.fields]
+            writer = csv.writer(db_table)
+            writer.writerow(row)
+
+        DataBase.__DICT_TABLE__[self.name]["count"] += 1
 
     def delete_record(self, key: Any) -> None:
         raise NotImplementedError
