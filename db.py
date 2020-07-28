@@ -53,8 +53,9 @@ class DBTable(db_api.DBTable):
                     if record[key_index] == str(values[self.key_field_name]):
                         raise ValueError
 
+        row = [values[field.name] for field in self.fields]
+
         with open(f"db_files/{self.name}.csv", 'a', newline='') as db_table:
-            row = [values[field.name] for field in self.fields]
             writer = csv.writer(db_table)
             writer.writerow(row)
 
@@ -84,27 +85,24 @@ class DBTable(db_api.DBTable):
 
             count = 0
 
-            for row in reader:
-                if row:
-                    condition_ = ""
+            for record in reader:
+                if record:
+                    conditions = ""
                     for condition in criteria:
                         key_index = self.get_index_of_field(condition.field_name)
-
                         if condition.operator == "=":
                             condition.operator = "=="
-
                         if isinstance(condition.value, str):
-                            condition_ += f" '{row[key_index]}' {condition.operator} '{condition.value}' and "
-
+                            conditions += f" '{record[key_index]}' {condition.operator} '{condition.value}' and "
                         else:
-                            condition_ += f" {row[key_index]} {condition.operator} {str(condition.value)} and "
+                            conditions += f" {record[key_index]} {condition.operator} {str(condition.value)} and "
 
-                    if not eval(condition_[:-4]):
-                        clean_rows.append(row)
+                    if not eval(conditions[:-4]):
+                        clean_rows.append(record)
                         count += 1
 
         if clean_rows:
-            with open(f"db_files/{self.name}.csv", 'w', newline="") as db_table:
+            with open(f"db_files/{self.name}.csv", 'w', newline='') as db_table:
                 writer = csv.writer(db_table)
                 writer.writerows(clean_rows)
 
@@ -123,6 +121,7 @@ class DBTable(db_api.DBTable):
                     for field in [field.name for field in self.fields]:
                         get_dict[field] = record[self.get_index_of_field(field)]
                     return get_dict
+
         raise ValueError
 
     def update_record(self, key: Any, values: Dict[str, Any]) -> None:
@@ -133,6 +132,7 @@ class DBTable(db_api.DBTable):
 
             update_rows = [next(reader)]
             row = {}
+
             for record in reader:
                 if record and record[key_index] == str(key):
                     row = record
@@ -142,15 +142,39 @@ class DBTable(db_api.DBTable):
             for name_field in [field.name for field in self.fields]:
                 if name_field in values.keys():
                     row[self.get_index_of_field(name_field)] = values[name_field]
+
             update_rows.append(row)
 
-        with open(f"db_files/{self.name}.csv", 'w') as db_table:
+        with open(f"db_files/{self.name}.csv", 'w', newline='') as db_table:
             writer = csv.writer(db_table)
             writer.writerows(update_rows)
 
     def query_table(self, criteria: List[SelectionCriteria]) \
             -> List[Dict[str, Any]]:
-        raise NotImplementedError
+        with open(f"db_files/{self.name}.csv", 'r') as db_table:
+            reader = csv.reader(db_table)
+
+            get_query_table = []
+
+            for record in reader:
+                if record:
+                    conditions = ""
+                    for condition in criteria:
+                        key_index = self.get_index_of_field(condition.field_name)
+                        if condition.operator == "=":
+                            condition.operator = "=="
+                        if isinstance(condition.value, str):
+                            conditions += f" '{record[key_index]}' {condition.operator} '{condition.value}' and "
+                        else:
+                            conditions += f" {record[key_index]} {condition.operator} {str(condition.value)} and "
+
+                    if eval(conditions[:-4]):
+                        dict_query_table = {}
+                        for field in [field.name for field in self.fields]:
+                            dict_query_table[field] = record[self.get_index_of_field(field)]
+                        get_query_table.append(dict_query_table)
+
+        return get_query_table
 
     def create_index(self, field_to_index: str) -> None:
         raise NotImplementedError
