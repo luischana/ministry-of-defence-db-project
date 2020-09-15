@@ -139,8 +139,10 @@ class DBTable(db_api.DBTable):
 
             for record in reader:
                 if record and record[key_index] == str(key):
+
                     for field in [field.name for field in self.fields]:
                         get_dict[field] = record[self.get_index_of_field(field)]
+
                     return get_dict
 
         raise KeyError
@@ -157,6 +159,7 @@ class DBTable(db_api.DBTable):
             for record in reader:
                 if record and record[key_index] == str(key):
                     row = record
+
                 else:
                     update_rows.append(record)
 
